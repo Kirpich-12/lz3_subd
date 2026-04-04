@@ -152,8 +152,8 @@ JOIN faculty ON hours.faculty_id = faculty.id
 GROUP BY faculty.faculty_name, [hours].course
 HAVING AVG(stud.exm) > 7.5
 
-SELECT 
-    [hours].course,                         
+--5
+SELECT                        
     faculty.faculty_name,                 
     [form].form_name,                     
     AVG(stud.exm) as avg_exm             
@@ -162,6 +162,6 @@ JOIN process ON stud.id = process.stud_id
 JOIN hours ON process.hours_id = hours.id
 JOIN faculty ON hours.faculty_id = faculty.id
 join form ON hours.form_id = form.id
-GROUP BY [hours].course, faculty.faculty_name, form.form_name
+GROUP BY faculty.faculty_name, form.form_name
 HAVING AVG(stud.exm) > 2        
  
