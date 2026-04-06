@@ -1,4 +1,4 @@
-
+CREATE DATABASE LZ
 USE LZ
 
 CREATE TABLE stud(
@@ -196,3 +196,502 @@ JOIN faculty ON hours.faculty_id = faculty.id
 GROUP BY faculty.faculty_name, hours.course
 
 --6
+SELECT 
+    f.faculty_name AS fac,
+    fm.form_name AS form,
+    MIN(s.exm) AS minsr
+FROM 
+    stud s, 
+    faculty f,
+    form fm,
+    [hours] h, 
+    process p
+WHERE 
+    s.id = p.stud_id                
+    AND p.hours_id = h.id           
+    AND h.faculty_id = f.id
+    AND h.form_id = fm.id
+GROUP BY 
+    f.faculty_name, fm.form_name
+HAVING 
+    MIN(s.exm) >= 6
+ORDER BY 
+    f.faculty_name, fm.form_name;
+
+--7
+SELECT 
+    (hours.all_h - hours.inclass_id) AS СампоЧасы
+FROM hours
+JOIN faculty ON hours.faculty_id = faculty.id
+JOIN form ON hours.form_id = form.id
+WHERE faculty.faculty_name = N'ФПК'    
+  AND hours.course = 3               
+  AND form.form_name = N'заочная';
+
+--8
+SELECT 
+    faculty.faculty_name,
+    hours.course,
+    form.form_name,
+    (hours.all_h - hours.inclass_id) AS СампоЧасы
+FROM hours
+JOIN faculty ON hours.faculty_id = faculty.id
+JOIN form ON hours.form_id = form.id
+WHERE (hours.all_h - hours.inclass_id) > 150
+ORDER BY 
+    faculty.faculty_name, 
+    hours.course;
+
+--9
+SELECT 
+    faculty.faculty_name,
+    COUNT(hours.id) AS kol
+FROM hours
+JOIN faculty ON hours.faculty_id = faculty.id
+GROUP BY faculty.faculty_name
+ORDER BY faculty.faculty_name;
+
+--10
+SELECT 
+    faculty.faculty_name,
+    COUNT(DISTINCT work.teach_id) AS kol
+FROM faculty
+JOIN hours ON faculty.id = hours.faculty_id
+JOIN work ON hours.id = work.hours_id
+GROUP BY faculty.faculty_name;
+
+--11
+WITH MaxHoursPerTeacher AS (
+    SELECT 
+        work.teach_id,
+        MAX(hours.all_h) AS max_hours
+    FROM work
+    JOIN hours ON work.hours_id = hours.id
+    GROUP BY work.teach_id
+)
+SELECT 
+    teach.id AS teach_id,
+    teach.last_name,
+    teach.f_name,
+    subj.subj,
+    hours.all_h
+FROM teach
+JOIN work ON teach.id = work.teach_id
+JOIN subj ON work.subj_id = subj.id
+JOIN hours ON work.hours_id = hours.id
+JOIN MaxHoursPerTeacher ON teach.id = MaxHoursPerTeacher.teach_id 
+                       AND hours.all_h = MaxHoursPerTeacher.max_hours
+ORDER BY teach.id;
+
+--12
+SELECT 
+    teach.id,
+    teach.last_name,
+    teach.f_name,
+    teach.s_name,
+    COUNT(DISTINCT work.subj_id) AS kol
+FROM teach
+JOIN work ON teach.id = work.teach_id
+GROUP BY 
+    teach.id, 
+    teach.last_name, 
+    teach.f_name, 
+    teach.s_name
+HAVING COUNT(DISTINCT work.subj_id) > 1;
+
+--13
+SELECT 
+    hours.course,
+    faculty.faculty_name,
+    SUM(hours.all_h) AS sum
+FROM hours
+JOIN faculty ON hours.faculty_id = faculty.id
+GROUP BY 
+    hours.course, 
+    faculty.faculty_name
+ORDER BY hours.course;
+
+--14
+SELECT 
+    faculty.faculty_name,
+    hours.course,
+    COUNT(DISTINCT subj.id) AS kol
+FROM hours
+JOIN faculty ON hours.faculty_id = faculty.id
+JOIN work ON hours.id = work.hours_id
+JOIN subj ON work.subj_id = subj.id
+WHERE hours.course = 2
+GROUP BY 
+    faculty.faculty_name, 
+    hours.course
+ORDER BY 
+    faculty.faculty_name DESC, 
+    hours.course ASC;
+    
+--15
+SELECT 
+    faculty.faculty_name,
+    COUNT(DISTINCT subj.id) AS kol
+FROM faculty
+JOIN hours ON faculty.id = hours.faculty_id
+JOIN work ON hours.id = work.hours_id
+JOIN subj ON work.subj_id = subj.id
+JOIN teach ON work.teach_id = teach.id
+WHERE teach.s_name = ''
+GROUP BY faculty.faculty_name;
+
+
+
+--JOIN
+-- 1
+SELECT
+    s.last_name,
+    s.f_name,
+    s.s_name,
+    f.faculty_name,
+    h.course
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+JOIN [form] fo ON h.form_id = fo.id
+WHERE
+    fo.form_name = N'заочная'
+    AND DATEDIFF(year, s.br_date, GETDATE()) < 37;
+
+-- 2
+SELECT
+    f.faculty_name,
+    COUNT(DISTINCT s.id) AS student_count
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+GROUP BY f.faculty_name;
+
+-- 3
+SELECT
+    fo.form_name,
+    COUNT(DISTINCT s.id) AS student_count
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN form fo ON h.form_id = fo.id
+GROUP BY fo.form_name;
+
+-- 4
+SELECT
+    f.faculty_name,
+    AVG(DATEDIFF(year, s.br_date, DATEFROMPARTS(2023, 12, 31))) AS avg_age
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+GROUP BY f.faculty_name;
+
+-- 5
+SELECT
+    s.last_name,
+    s.f_name,
+    s.br_date,
+    s.in_date,
+    f.faculty_name,
+    h.course,
+    fo.form_name
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+JOIN [form] fo ON h.form_id = fo.id
+WHERE s.s_name = '';
+
+-- Optional check (left from your code)
+SELECT * FROM stud WHERE s_name = '';
+
+-- 6
+SELECT TOP 1
+    f.faculty_name,
+    COUNT(*) AS enrolled_students
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+WHERE YEAR(s.in_date) = 2015
+GROUP BY f.faculty_name
+ORDER BY enrolled_students DESC;
+
+-- 7
+SELECT 
+    f.faculty_name,
+    fo.form_name,
+    COUNT(DISTINCT s.id) AS student_count
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+JOIN form fo ON h.form_id = fo.id
+WHERE YEAR(s.in_date) = 2014
+GROUP BY 
+    f.faculty_name,
+    fo.form_name
+ORDER BY
+    f.faculty_name,
+    fo.form_name;
+
+-- 8
+SELECT DISTINCT f.faculty_name
+FROM faculty f
+JOIN [hours] h ON f.id = h.faculty_id
+JOIN form fo ON h.form_id = fo.id
+WHERE fo.form_name = N'заочная';
+
+-- 9
+SELECT 
+    f.faculty_name,
+    fo.form_name,
+    h.course
+FROM faculty f
+JOIN [hours] h ON f.id = h.faculty_id
+JOIN form fo ON h.form_id = fo.id
+ORDER BY 
+    f.faculty_name,
+    fo.form_name,
+    h.course;
+
+-- 10
+SELECT 
+    f.faculty_name,
+    fo.form_name,
+    COUNT(DISTINCT s.id) AS student_count
+FROM faculty f
+JOIN [hours] h ON f.id = h.faculty_id
+JOIN form fo ON h.form_id = fo.id
+JOIN process p ON h.id = p.hours_id
+JOIN stud s ON p.stud_id = s.id
+GROUP BY 
+    f.faculty_name,
+    fo.form_name
+ORDER BY 
+    f.faculty_name,
+    fo.form_name;
+
+-- 11
+SELECT 
+    COUNT(DISTINCT s.id) AS total_students_course_1_and_3
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+WHERE h.course IN (1, 3);
+
+-- 12
+SELECT 
+    f.faculty_name,
+    h.course,
+    COUNT(DISTINCT s.id) AS foreign_student_count
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+WHERE s.s_name IS NULL OR s.s_name = ''
+GROUP BY 
+    f.faculty_name,
+    h.course
+ORDER BY 
+    f.faculty_name,
+    h.course;
+
+-- 13
+SELECT 
+    f.faculty_name,
+    h.course,
+    COUNT(DISTINCT s.id) AS student_count
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+WHERE s.exm > 7.5
+GROUP BY 
+    f.faculty_name,
+    h.course
+ORDER BY 
+    f.faculty_name,
+    h.course;
+
+-- 14
+SELECT 
+    f.faculty_name,
+    fo.form_name,
+    COUNT(DISTINCT s.id) AS students_over_45
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+JOIN form fo ON h.form_id = fo.id
+WHERE DATEDIFF(year, s.br_date, GETDATE()) > 45
+GROUP BY 
+    f.faculty_name,
+    fo.form_name
+ORDER BY 
+    f.faculty_name,
+    fo.form_name;
+
+-- 15
+SELECT 
+    f.faculty_name,
+    fo.form_name,
+    h.course,
+    COUNT(DISTINCT s.id) AS students_under_27
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+JOIN form fo ON h.form_id = fo.id
+WHERE DATEDIFF(year, s.br_date, GETDATE()) < 27
+GROUP BY 
+    f.faculty_name,
+    fo.form_name,
+    h.course
+ORDER BY 
+    f.faculty_name,
+    fo.form_name,
+    h.course;
+
+-- 16
+SELECT 
+    f.faculty_name,
+    COUNT(DISTINCT s.id) AS students_surname_s
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+WHERE s.last_name LIKE N'С%' OR s.last_name LIKE N'с%'
+GROUP BY 
+    f.faculty_name
+ORDER BY 
+    f.faculty_name;
+
+-- podp
+
+--1
+SELECT 
+    id,
+    last_name, 
+    f_name, 
+    s_name, 
+    exm
+FROM stud
+WHERE exm <= (SELECT MAX(exm) * 0.8 FROM stud)
+ORDER BY exm DESC;
+
+--2
+SELECT 
+    id,
+    last_name, 
+    f_name, 
+    s_name, 
+    exm
+FROM stud
+WHERE exm = (SELECT MAX(exm) FROM stud);
+
+--3
+SELECT s.last_name
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN hours h ON p.hours_id = h.id
+WHERE h.faculty_id = (
+    SELECT TOP 1 h2.faculty_id
+    FROM process p2
+    JOIN hours h2 ON p2.hours_id = h2.id
+    GROUP BY h2.faculty_id
+    ORDER BY COUNT(p2.stud_id) DESC
+);
+
+--4
+SELECT 
+    s.last_name, 
+    s.f_name, 
+    s.s_name
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+WHERE p.hours_id NOT IN (
+    -- Подзапрос: находим все ID учебных групп (комбинация курса, формы и фак-та), 
+    -- в которых учится хотя бы один студент без отчества
+    SELECT DISTINCT p2.hours_id
+    FROM process p2
+    JOIN stud s2 ON p2.stud_id = s2.id
+    WHERE s2.s_name IS NULL OR s2.s_name = ''
+);
+
+--5
+SELECT DISTINCT
+    s.last_name,
+    s.f_name,
+    s.s_name
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+WHERE p.hours_id IN (
+    -- Подзапрос: находим ID групп(ы), в которых учится Богоявленский
+    SELECT p2.hours_id
+    FROM process p2
+    JOIN stud s2 ON p2.stud_id = s2.id
+    WHERE s2.last_name = N'Богоявленский'
+)
+-- Исключаем самого Богоявленского из итогового списка
+AND s.last_name <> N'Богоявленский';
+
+--6
+SELECT DISTINCT
+    s.last_name,
+    s.f_name,
+    s.s_name
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN hours h ON p.hours_id = h.id
+WHERE h.course IN (
+    -- Подзапрос: находим номера курсов, на которых учатся Зингель или Зайцева
+    SELECT h2.course
+    FROM stud s2
+    JOIN process p2 ON s2.id = p2.stud_id
+    JOIN hours h2 ON p2.hours_id = h2.id
+    WHERE s2.last_name = N'Зингель' OR s2.last_name = N'Зайцева'
+)
+-- Исключаем самих студентов из итогового списка
+AND s.last_name NOT IN (N'Зингель', N'Зайцева');
+
+--7
+
+SELECT 
+    s.last_name, 
+    s.f_name, 
+    s.s_name
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+WHERE p.hours_id IN (
+    -- Подзапрос: находим ID групп (hours_id), 
+    -- где количество иностранцев (без отчества) > 1
+    SELECT p2.hours_id
+    FROM process p2
+    JOIN stud s2 ON p2.stud_id = s2.id
+    WHERE s2.s_name IS NULL OR s2.s_name = N''
+    GROUP BY p2.hours_id
+    HAVING COUNT(s2.id) > 1
+);
+
+--8
+SELECT 
+    s.last_name, 
+    s.f_name, 
+    s.s_name,
+    h.course,
+    f.faculty_name,
+    -- Подзапрос для подсчета всех студентов на данном потоке
+    (SELECT COUNT(*) 
+     FROM process p2 
+     WHERE p2.hours_id = p.hours_id) AS total_students_on_flow
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN hours h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+WHERE s.s_name IS NULL OR s.s_name = N''
+ORDER BY f.faculty_name, h.course;
+
