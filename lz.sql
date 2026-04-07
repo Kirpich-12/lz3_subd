@@ -98,6 +98,7 @@ INSERT into stud(last_name, f_name, s_name, br_date, in_date, exm) values ('Ку
 INSERT into stud(last_name, f_name, s_name, br_date, in_date, exm) values ('Сидоров', 'Иван', 'Иванович', '1999-01-01', '2018-09-01', 6)
 INSERT into stud(last_name, f_name, s_name, br_date, in_date, exm) values ('Сидоров', 'Иван', 'Иванович', '1999-01-01', '2018-09-01', 7.6)
 INSERT into stud(last_name, f_name, s_name, br_date, in_date, exm) values ('Сидоров', 'Иван', 'Петрович', '1999-01-01', '2018-09-01', 7.6)
+INSERT into stud(last_name, f_name, s_name, br_date, in_date, exm) values ('Узбеков', 'Ибрагим', NULL, '1999-01-01', '2018-09-01', 7.6)
 SELECT * from stud
 
 INSERT into process(stud_id, hours_id) values (1, 1)
@@ -105,6 +106,7 @@ INSERT into process(stud_id, hours_id) values (2, 3)
 INSERT into process(stud_id, hours_id) values (3, 4)
 INSERT into process(stud_id, hours_id) values (4, 3)
 INSERT into process(stud_id, hours_id) values (5, 3)
+INSERT into process(stud_id, hours_id) values (26, 3)
 SELECT * from process
 
 INSERT into work(teach_id, hours_id, subj_id) values (1, 1, 1)
@@ -405,9 +407,6 @@ JOIN faculty f ON h.faculty_id = f.id
 JOIN [form] fo ON h.form_id = fo.id
 WHERE s.s_name = '';
 
--- Optional check (left from your code)
-SELECT * FROM stud WHERE s_name = '';
-
 -- 6
 SELECT TOP 1
     f.faculty_name,
@@ -570,8 +569,8 @@ GROUP BY
 ORDER BY 
     f.faculty_name;
 
--- podp
 
+-- podp
 --1
 SELECT 
     id,
@@ -614,8 +613,6 @@ SELECT
 FROM stud s
 JOIN process p ON s.id = p.stud_id
 WHERE p.hours_id NOT IN (
-    -- Подзапрос: находим все ID учебных групп (комбинация курса, формы и фак-та), 
-    -- в которых учится хотя бы один студент без отчества
     SELECT DISTINCT p2.hours_id
     FROM process p2
     JOIN stud s2 ON p2.stud_id = s2.id
@@ -630,13 +627,11 @@ SELECT DISTINCT
 FROM stud s
 JOIN process p ON s.id = p.stud_id
 WHERE p.hours_id IN (
-    -- Подзапрос: находим ID групп(ы), в которых учится Богоявленский
     SELECT p2.hours_id
     FROM process p2
     JOIN stud s2 ON p2.stud_id = s2.id
     WHERE s2.last_name = N'Богоявленский'
 )
--- Исключаем самого Богоявленского из итогового списка
 AND s.last_name <> N'Богоявленский';
 
 --6
@@ -648,14 +643,12 @@ FROM stud s
 JOIN process p ON s.id = p.stud_id
 JOIN hours h ON p.hours_id = h.id
 WHERE h.course IN (
-    -- Подзапрос: находим номера курсов, на которых учатся Зингель или Зайцева
     SELECT h2.course
     FROM stud s2
     JOIN process p2 ON s2.id = p2.stud_id
     JOIN hours h2 ON p2.hours_id = h2.id
     WHERE s2.last_name = N'Зингель' OR s2.last_name = N'Зайцева'
 )
--- Исключаем самих студентов из итогового списка
 AND s.last_name NOT IN (N'Зингель', N'Зайцева');
 
 --7
@@ -667,8 +660,6 @@ SELECT
 FROM stud s
 JOIN process p ON s.id = p.stud_id
 WHERE p.hours_id IN (
-    -- Подзапрос: находим ID групп (hours_id), 
-    -- где количество иностранцев (без отчества) > 1
     SELECT p2.hours_id
     FROM process p2
     JOIN stud s2 ON p2.stud_id = s2.id
@@ -684,7 +675,6 @@ SELECT
     s.s_name,
     h.course,
     f.faculty_name,
-    -- Подзапрос для подсчета всех студентов на данном потоке
     (SELECT COUNT(*) 
      FROM process p2 
      WHERE p2.hours_id = p.hours_id) AS total_students_on_flow
@@ -695,3 +685,7 @@ JOIN faculty f ON h.faculty_id = f.id
 WHERE s.s_name IS NULL OR s.s_name = N''
 ORDER BY f.faculty_name, h.course;
 
+
+
+--proc
+--1
