@@ -689,3 +689,314 @@ ORDER BY f.faculty_name, h.course;
 
 --proc
 --1
+GO
+CREATE PROCEDURE GetStud
+    @FacultyName NVARCHAR(50),
+    @FormName NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @TotalCount INT;
+
+    SELECT @TotalCount = COUNT(p.stud_id)
+    FROM faculty f
+    JOIN hours h ON f.id = h.faculty_id
+    JOIN form fm ON h.form_id = fm.id
+    JOIN process p ON h.id = p.hours_id
+    WHERE f.faculty_name = @FacultyName
+      AND fm.form_name = @FormName;
+
+    PRINT N'Факультет: ' + @FacultyName;
+    PRINT N'Форма обучения: ' + @FormName;
+    PRINT N'Количество студентов: ' + CAST(@TotalCount AS NVARCHAR(10));
+    
+    SELECT 
+        @FacultyName AS [Факультет], 
+        @FormName AS [Форма обучения], 
+        @TotalCount AS [Количество студентов];
+END;
+GO
+
+--2
+GO
+CREATE PROCEDURE GetSubj
+    @CountFPK INT OUTPUT,
+    @CountFPM INT OUTPUT,
+    @TotalSubj INT OUTPUT,
+    @IdenticalSubj INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT @CountFPK = COUNT(DISTINCT w.subj_id)
+    FROM work w
+    JOIN hours h ON w.hours_id = h.id
+    JOIN faculty f ON h.faculty_id = f.id
+    WHERE f.faculty_name = N'ФПК';
+
+    SELECT @CountFPM = COUNT(DISTINCT w.subj_id)
+    FROM work w
+    JOIN hours h ON w.hours_id = h.id
+    JOIN faculty f ON h.faculty_id = f.id
+    WHERE f.faculty_name = N'ФПM';
+
+    SELECT @TotalSubj = COUNT(id) FROM subj;
+
+    SELECT @IdenticalSubj = COUNT(*)
+    FROM (
+        SELECT subj_id
+        FROM work w
+        JOIN hours h ON w.hours_id = h.id
+        JOIN faculty f ON h.faculty_id = f.id
+        WHERE f.faculty_name IN (N'ФПК', N'ФПM')
+        GROUP BY subj_id
+        HAVING COUNT(DISTINCT f.id) > 1
+    ) AS DuplicateSubjs;
+
+    PRINT N'Для ФПК читается ' + CAST(ISNULL(@CountFPK, 0) AS NVARCHAR(10)) + N' предметов, ' +
+          N'для ФПМ читается ' + CAST(ISNULL(@CountFPM, 0) AS NVARCHAR(10)) + N' предметов, ' +
+          N'всего предметов ' + CAST(ISNULL(@TotalSubj, 0) AS NVARCHAR(10)) + 
+          N' (из которых идентичных: ' + CAST(ISNULL(@IdenticalSubj, 0) AS NVARCHAR(10)) + N').';
+END;
+GO
+
+--3
+
+CREATE PROCEDURE AddStud
+    @FacultyName NVARCHAR(100),
+    @FormName NVARCHAR(50),
+    @BirthDate DATE,
+    @EnrollmentDate DATE,
+    @FullName NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @FacultyID INT;
+    DECLARE @FormID INT;
+
+    SELECT @FacultyID = Id FROM Faculties WHERE Name = @FacultyName;
+
+    SELECT @FormID = Id FROM EducationForms WHERE Name = @FormName;
+
+    IF @FacultyID IS NULL
+    BEGIN
+        RAISERROR('Ошибка: Указанный факультет "%s" не найден.', 16, 1, @FacultyName);
+        RETURN;
+    END
+
+    IF @FormID IS NULL
+    BEGIN
+        RAISERROR('Ошибка: Форма обучения "%s" не найдена.', 16, 1, @FormName);
+        RETURN;
+    END
+
+    INSERT INTO Students (FullName, BirthDate, EnrollmentDate, FacultyId, FormId, CurrentCourse)
+    VALUES (@FullName, @BirthDate, @EnrollmentDate, @FacultyID, @FormID, 1);
+
+    PRINT 'Студент успешно зачислен на 1 курс.';
+END;
+
+
+--func
+--1
+GO
+CREATE FUNCTION CheckCitizen (@Patronymic NVARCHAR(100))
+RETURNS NVARCHAR(20)
+AS
+BEGIN
+    DECLARE @Result NVARCHAR(20);
+
+    -- Проверяем: если значение NULL или пустая строка (даже с пробелами)
+    IF @Patronymic IS NULL OR LTRIM(RTRIM(@Patronymic)) = ''
+    BEGIN
+        SET @Result = 'иностранец';
+    END
+    ELSE
+    BEGIN
+        -- Если в поле есть хоть какой-то текст
+        SET @Result = 'гражданин';
+    END
+
+    RETURN @Result;
+END;
+GO
+
+--2
+
+GO
+CREATE FUNCTION GetTeacherWorkload ()
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT 
+        t.id,
+        t.last_name,
+        t.f_name,
+        t.s_name,
+        ISNULL(SUM(h.all_h), 0) AS total_hours
+    FROM Teach t
+    LEFT JOIN [work] w ON t.id = w.teach_id
+    LEFT JOIN [hours] h ON w.hours_id = h.id
+    GROUP BY 
+        t.id, 
+        t.last_name, 
+        t.f_name, 
+        t.s_name
+);
+GO
+
+--view
+
+--1.1
+GO
+CREATE VIEW View_Students_FPK AS
+SELECT 
+    s.last_name + ' ' + s.f_name + ' ' + ISNULL(s.s_name, '') AS [ФИО],
+    h.course AS [Курс],
+    fm.form_name AS [Форма обучения]
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+JOIN form fm ON h.form_id = fm.id
+WHERE f.faculty_name = N'ФПК';
+GO
+
+--1.2(мод)
+GO
+CREATE VIEW View_Hours AS
+SELECT 
+    f.faculty_name AS [Факультет],
+    h.course AS [Курс],
+    SUM(h.all_h) AS [Общее количество часов]
+FROM [hours] h
+JOIN faculty f ON h.faculty_id = f.id
+JOIN form fm ON h.form_id = fm.id
+WHERE fm.form_name = N'заочная'
+GROUP BY f.faculty_name, h.course;
+GO
+
+--1.3
+GO
+CREATE VIEW View_Top_Students_Count AS
+SELECT 
+    f.faculty_name AS [Факультет],
+    h.course AS [Курс],
+    COUNT(s.id) AS [Количество отличников]
+FROM stud s
+JOIN process p ON s.id = p.stud_id
+JOIN [hours] h ON p.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+WHERE s.exm > 8
+GROUP BY f.faculty_name, h.course;
+GO
+
+--1.4(мод)
+GO
+CREATE VIEW View_Low AS
+SELECT 
+    s.last_name + ' ' + s.f_name + ' ' + ISNULL(s.s_name, '') AS [ФИО],
+    s.exm AS [Средний балл]
+FROM stud s
+WHERE s.exm < 6;
+GO
+
+--Union
+--1
+SELECT 
+    t.last_name AS [Фамилия], 
+    t.f_name AS [Имя], 
+    t.s_name AS [Отчество],
+    ISNULL(SUM(h.all_h), 0) AS [Всего часов],
+    CASE 
+        WHEN SUM(h.all_h) > 450 THEN '20%'
+        WHEN SUM(h.all_h) >= 300 AND SUM(h.all_h) <= 450 THEN '10%'
+        ELSE '0%'
+    END AS [Надбавка к ЗП]
+FROM Teach t
+LEFT JOIN [work] w ON t.id = w.teach_id
+LEFT JOIN [hours] h ON w.hours_id = h.id
+GROUP BY 
+    t.id, 
+    t.last_name, 
+    t.f_name, 
+    t.s_name;
+
+--2
+
+SELECT 
+    last_name AS [Фамилия],
+    CASE 
+        WHEN s_name IS NULL OR LTRIM(RTRIM(s_name)) = '' THEN N'иностранное'
+        ELSE N'РБ'
+    END AS [Гражданство],
+    N'Студент' AS [Статус] -- Добавим для наглядности, кто есть кто
+FROM stud
+
+UNION ALL
+
+SELECT 
+    last_name AS [Фамилия],
+    CASE 
+        WHEN s_name IS NULL OR LTRIM(RTRIM(s_name)) = '' THEN N'иностранное'
+        ELSE N'РБ'
+    END AS [Гражданство],
+    N'Преподаватель' AS [Статус]
+FROM Teach
+ORDER BY [Гражданство], [Фамилия];
+
+--3
+
+SELECT DISTINCT 
+    t.last_name, 
+    t.f_name, 
+    t.s_name
+FROM teach t
+JOIN [work] w ON t.id = w.teach_id
+WHERE t.id IN (
+    SELECT w1.teach_id
+    FROM [work] w1
+    JOIN [hours] h1 ON w1.hours_id = h1.id
+    JOIN faculty f1 ON h1.faculty_id = f1.id
+    WHERE f1.faculty_name = N'ФПК'
+)
+AND t.id IN (
+    SELECT w2.teach_id
+    FROM [work] w2
+    JOIN [hours] h2 ON w2.hours_id = h2.id
+    JOIN faculty f2 ON h2.faculty_id = f2.id
+    WHERE f2.faculty_name = N'ФПМ'
+);
+
+--4 
+SELECT DISTINCT 
+    t.last_name, 
+    t.f_name, 
+    t.s_name
+FROM teach t
+JOIN [work] w ON t.id = w.teach_id
+JOIN [hours] h ON w.hours_id = h.id
+JOIN faculty f ON h.faculty_id = f.id
+WHERE f.faculty_name = N'ФПК' 
+  AND t.id NOT IN (
+    SELECT w2.teach_id
+    FROM [work] w2
+    JOIN [hours] h2 ON w2.hours_id = h2.id
+    JOIN faculty f2 ON h2.faculty_id = f2.id
+    WHERE f2.faculty_name = N'ФПМ'
+);
+
+--5
+
+SELECT 
+    t.Тип, 
+    t.Кол_во
+FROM (
+    VALUES 
+        (N'Студентов', (SELECT COUNT(*) FROM stud)),
+        (N'Преподавателей', (SELECT COUNT(*) FROM teach)),
+        (N'Всего человек', (SELECT COUNT(*) FROM stud) + (SELECT COUNT(*) FROM teach))
+) AS t(Тип, Кол_во);
